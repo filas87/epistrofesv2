@@ -3,9 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Έλεγχος Επιστροφής Zebra</title>
+  <title>Έλεγχος Επιστροφής</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -15,7 +20,7 @@
     }
 
     .wrap {
-      max-width: 760px;
+      max-width: 860px;
       margin: 0 auto;
       padding: 16px;
     }
@@ -24,7 +29,7 @@
       background: #ffffff;
       border-radius: 18px;
       padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
     }
 
     h1 {
@@ -43,10 +48,39 @@
       font-size: 15px;
     }
 
-    .status-bar {
-      display: grid;
-      grid-template-columns: 1fr;
+    .upload-row {
+      display: flex;
       gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .file-label {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .file-label input {
+      display: none;
+    }
+
+    .file-name {
+      font-size: 14px;
+      color: #374151;
+      word-break: break-word;
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
       margin-bottom: 14px;
     }
 
@@ -78,7 +112,7 @@
 
     input[type="text"]:focus {
       border-color: #2563eb;
-      box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
     }
 
     .buttons {
@@ -191,10 +225,23 @@
       font-size: 13px;
     }
 
-    @media (max-width: 600px) {
-      h1 { font-size: 24px; }
-      .result { font-size: 34px; min-height: 120px; }
-      .history-item { flex-direction: column; }
+    @media (max-width: 700px) {
+      .top-grid {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .result {
+        font-size: 34px;
+        min-height: 120px;
+      }
+
+      .history-item {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -204,10 +251,23 @@
       <h1>Έλεγχος Επιστροφής</h1>
 
       <div class="info">
-        Zebra scanner mode: το πρόγραμμα δέχεται scan είτε μέσα στο πεδίο είτε γενικά σαν πληκτρολόγιο.
+        Φόρτωσε αρχείο Excel με tracking numbers και μετά σκάναρε ή γράψε έναν κωδικό για να δεις αν είναι επιστροφή.
       </div>
 
-      <div class="status-bar">
+      <div class="upload-row">
+        <label class="file-label">
+          Φόρτωση Excel
+          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" />
+        </label>
+        <div class="file-name" id="fileName">Δεν έχει φορτωθεί αρχείο.</div>
+      </div>
+
+      <div class="top-grid">
+        <div class="mini-box">
+          <strong>Πλήθος tracking numbers</strong>
+          <div id="countBox">0</div>
+        </div>
+
         <div class="mini-box">
           <strong>Τελευταίο scan buffer</strong>
           <div id="liveBuffer">—</div>
@@ -227,10 +287,9 @@
         <button class="btn-main" id="checkBtn">Έλεγχος</button>
         <button class="btn-light" id="clearBtn">Καθαρισμός</button>
         <button class="btn-light" id="focusBtn">Εστίαση</button>
-        <button class="btn-light" id="testBtn">Τεστ JavaScript</button>
       </div>
 
-      <div id="resultBox" class="result neutral">Περίμενω scan...</div>
+      <div id="resultBox" class="result neutral">Φόρτωσε Excel και μετά σκάναρε</div>
       <div id="details" class="details"></div>
 
       <div class="history">
@@ -243,42 +302,11 @@
   </div>
 
   <script>
-    const trackingNumbers = new Set([
-      "NB421145386GR","NB421442693GR","NB421445329GR","NB421490067GR","NB421501428GR",
-      "NB421501811GR","NB421503830GR","NB421506371GR","NB421410280GR","NB421448815GR",
-      "NB421557886GR","NB421567035GR","NB421628980GR","NB421631935GR","NB421688524GR",
-      "NB421442367GR","NB421551795GR","NB421695701GR","NB421809219GR","NB421843691GR",
-      "NB421890895GR","NB422092296GR","NB422356815GR","NB422356885GR","NB422362943GR",
-      "NB422363229GR","NB422367353GR","NB422451095GR","NB422481061GR","NB422550907GR",
-      "NB422550915GR","NB422571685GR","NB422584914GR","NB422584928GR","NB422372628GR",
-      "NB422411825GR","NB422446864GR","NB422446918GR","NB422447309GR","NB422550924GR",
-      "NB422551258GR","NB422581453GR","NB422624410GR","NB422633221GR","NB422780193GR",
-      "NB422795388GR","NB422801565GR","NB422804014GR","NB422809515GR","NB422809555GR",
-      "NB422810916GR","NB422837777GR","NB422853911GR","NB422855078GR","NB422855081GR",
-      "NB422855104GR","NB422859097GR","NB422883343GR","NB422887212GR","NB422855118GR",
-      "NB422891662GR","NM940056753GR","NM940056767GR","NM940056775GR","NM940056784GR",
-      "NM940056798GR","NB422925216GR","NB422971326GR","NB423116419GR","NB423116440GR",
-      "NB423150494GR","NB423150582GR","NB423215822GR","NB423248998GR","NB423249931GR",
-      "NB423116405GR","NB423116467GR","NB423150463GR","NB423150534GR","NB423842172GR",
-      "NB423870880GR","NB423871236GR","NB423890575GR","NB423894427GR","NB423975253GR",
-      "NB423975275GR","NB423890907GR","NB423976903GR","NB423986260GR","NB423992795GR",
-      "NB423992821GR","NB424026241GR","NB424034455GR","NB424038871GR","NB424039347GR",
-      "NB424039364GR","NB424130828GR","NB424135604GR","NB424135621GR","NB424135635GR",
-      "NB424160820GR","NB424196308GR","NB424207266GR","NB424207425GR","NB424209094GR",
-      "NB424209103GR","NB424237197GR","NB424237926GR","NB424246865GR","NB424284869GR",
-      "NB424285073GR","NB424289883GR","NB424297068GR","NB424299435GR","NB424308548GR",
-      "NB424343567GR","NB424343575GR","NB424344275GR","NB424354255GR","NB424354281GR",
-      "NB424355928GR","NB424448616GR","NB424461382GR","NB424498073GR","NB424506747GR",
-      "NB424509955GR","NB424549084GR","NB424561385GR","NB424561417GR","NB424638853GR",
-      "NM940057277GR","NM940057229GR","NM940057263GR","NM940057436GR","NM940057382GR",
-      "NM940057396GR","NM940057515GR","NM940057949GR","NM940057970GR","NM940057983GR",
-      "NM940057997GR","NM831297869GR","NM940057215GR","NM940057246GR","NM940057250GR",
-      "NM940057498GR","NM940057317GR","NM940057334GR","NM940057348GR","NM940057405GR",
-      "NM940057422GR","NM940057467GR","NM940057538GR","NM940057555GR","NM940057612GR",
-      "NM940057626GR","NM940057643GR","NM940057657GR","NM940057674GR","NM940057921GR",
-      "NM940057966GR","NO810116977GR","NO810116963GR","NO810116929GR","NO810116950GR",
-      "NO810116708GR","NO810116915GR","NO810117059GR"
-    ]);
+    let trackingNumbers = new Set();
+
+    const excelFile = document.getElementById("excelFile");
+    const fileName = document.getElementById("fileName");
+    const countBox = document.getElementById("countBox");
 
     const scanInput = document.getElementById("scanInput");
     const resultBox = document.getElementById("resultBox");
@@ -289,14 +317,20 @@
     const checkBtn = document.getElementById("checkBtn");
     const clearBtn = document.getElementById("clearBtn");
     const focusBtn = document.getElementById("focusBtn");
-    const testBtn = document.getElementById("testBtn");
 
     let historyItems = [];
     let wedgeBuffer = "";
     let wedgeTimer = null;
 
     function normalizeCode(value) {
-      return String(value || "").replace(/\s+/g, "").trim().toUpperCase();
+      return String(value || "")
+        .replace(/\s+/g, "")
+        .trim()
+        .toUpperCase();
+    }
+
+    function updateCount() {
+      countBox.textContent = trackingNumbers.size;
     }
 
     function focusInput() {
@@ -314,7 +348,7 @@
       wedgeBuffer = "";
       liveBuffer.textContent = "—";
       details.textContent = "";
-      setNeutral("Περίμενω scan...");
+      setNeutral("Φόρτωσε Excel και μετά σκάναρε");
       focusInput();
     }
 
@@ -328,7 +362,9 @@
         <div class="history-item">
           <div><strong>${item.code}</strong></div>
           <div>
-            <span class="${item.found ? 'ok' : 'bad'}">${item.found ? 'ΕΠΙΣΤΡΟΦΗ' : 'ΟΧΙ ΕΠΙΣΤΡΟΦΗ'}</span>
+            <span class="${item.found ? 'ok' : 'bad'}">
+              ${item.found ? 'ΕΠΙΣΤΡΟΦΗ' : 'ΟΧΙ ΕΠΙΣΤΡΟΦΗ'}
+            </span>
             <span class="small"> — ${item.time}</span>
           </div>
         </div>
@@ -338,7 +374,11 @@
     function addHistory(code, found) {
       const time = new Date().toLocaleTimeString("el-GR");
       historyItems.unshift({ code, found, time });
-      if (historyItems.length > 15) historyItems.length = 15;
+
+      if (historyItems.length > 15) {
+        historyItems.length = 15;
+      }
+
       renderHistory();
     }
 
@@ -348,6 +388,12 @@
       if (!normalized) {
         setNeutral("Δώσε ή σκάναρε κωδικό");
         details.textContent = "";
+        return;
+      }
+
+      if (trackingNumbers.size === 0) {
+        setNeutral("Φόρτωσε πρώτα Excel");
+        details.textContent = "Δεν έχει φορτωθεί λίστα tracking numbers.";
         return;
       }
 
@@ -375,15 +421,78 @@
       showResult(code);
     }
 
-    checkBtn.addEventListener("click", checkCode);
+    function looksLikeTracking(code) {
+      return /^[A-Z]{2}[A-Z0-9]{9,}[A-Z]{2}$/.test(code) || /^[A-Z0-9]{10,}$/.test(code);
+    }
 
-    clearBtn.addEventListener("click", clearInput);
+    function loadTrackingFromRows(rows) {
+      const foundCodes = [];
 
-    focusBtn.addEventListener("click", focusInput);
+      for (const row of rows) {
+        if (!row) continue;
 
-    testBtn.addEventListener("click", function () {
-      alert("Το JavaScript δουλεύει κανονικά.");
+        if (Array.isArray(row)) {
+          for (const cell of row) {
+            const code = normalizeCode(cell);
+            if (looksLikeTracking(code)) {
+              foundCodes.push(code);
+            }
+          }
+        } else if (typeof row === "object") {
+          for (const key in row) {
+            const code = normalizeCode(row[key]);
+            if (looksLikeTracking(code)) {
+              foundCodes.push(code);
+            }
+          }
+        }
+      }
+
+      trackingNumbers = new Set(foundCodes);
+      updateCount();
+
+      if (trackingNumbers.size > 0) {
+        setNeutral("Το Excel φορτώθηκε");
+        details.textContent = "Φορτώθηκαν " + trackingNumbers.size + " tracking numbers.";
+      } else {
+        setNeutral("Δεν βρέθηκαν tracking numbers");
+        details.textContent = "Έλεγξε αν το Excel έχει σωστή στήλη με tracking numbers.";
+      }
+    }
+
+    excelFile.addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      fileName.textContent = file.name;
+
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+
+          const firstSheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[firstSheetName];
+
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          loadTrackingFromRows(rows);
+          focusInput();
+        } catch (error) {
+          trackingNumbers = new Set();
+          updateCount();
+          setNeutral("Σφάλμα φόρτωσης");
+          details.textContent = "Δεν μπόρεσα να διαβάσω το αρχείο Excel.";
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
     });
+
+    checkBtn.addEventListener("click", checkCode);
+    clearBtn.addEventListener("click", clearInput);
+    focusBtn.addEventListener("click", focusInput);
 
     scanInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
@@ -436,8 +545,9 @@
     });
 
     window.addEventListener("load", function () {
+      updateCount();
       focusInput();
-      setNeutral("Περίμενω scan...");
+      setNeutral("Φόρτωσε Excel και μετά σκάναρε");
     });
   </script>
 </body>
